@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Database Analytics Chatbot</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <section class="panel" aria-labelledby="chatFormTitle">
+      <h1 id="chatFormTitle">Database Analytics Chatbot</h1>
+      <p class="subtitle">Ask your analytics questions and get structured results from n8n.</p>
+
+      <form id="chatForm" novalidate>
+        <div class="field">
+          <label for="message">Message</label>
+          <textarea
+            id="message"
+            name="message"
+            rows="5"
+            required
+            placeholder="Ask something like: How many suppliers were active last quarter?"
+          ></textarea>
+          <p id="messageError" class="field-error hidden" role="alert"></p>
+        </div>
+
+        <div class="field">
+          <label for="userId">User ID (optional)</label>
+          <input
+            id="userId"
+            name="userId"
+            type="text"
+            placeholder="e.g. ross"
+            autocomplete="off"
+          >
+        </div>
+
+        <div class="button-row">
+          <button id="submitButton" type="submit">
+            <span id="submitButtonText">Send</span>
+          </button>
+          <button id="runAgainButton" class="secondary hidden" type="button">Run Again</button>
+        </div>
+
+        <p id="statusMessage" class="status" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <section id="resultsSection" class="panel hidden" aria-labelledby="resultsTitle">
+      <div class="results-header">
+        <h2 id="resultsTitle">Response</h2>
+      </div>
+      <p id="emptyState" class="hidden">No data returned.</p>
+      <div id="resultsContainer" class="results-grid"></div>
+    </section>
+
+    <section id="errorSection" class="panel error-panel hidden" aria-labelledby="errorTitle" role="alert">
+      <h2 id="errorTitle">Request Failed</h2>
+      <p id="errorStatus" class="error-status"></p>
+      <p id="errorMessage"></p>
+      <button id="retryButton" class="secondary" type="button">Retry</button>
+    </section>
+  </main>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
