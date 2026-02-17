@@ -4,13 +4,25 @@
   var PRIMARY_URL = "http://localhost:5678/webhook/analytics-chat";
   var FALLBACK_URL = "http://localhost:5678/webhook-test/analytics-chat";
 
+  var CONTROL_KEY_SET = {
+    success: true,
+    sessionid: true,
+    userid: true,
+    timestamp: true,
+    status: true,
+    statuscode: true,
+    code: true,
+    requestid: true,
+    messageid: true,
+    traceid: true
+  };
+
   var form = document.getElementById("chatForm");
   var messageInput = document.getElementById("message");
   var userIdInput = document.getElementById("userId");
   var submitButton = document.getElementById("submitButton");
   var submitButtonText = document.getElementById("submitButtonText");
   var runAgainButton = document.getElementById("runAgainButton");
-  var metaToggleButton = document.getElementById("metaToggleButton");
   var retryButton = document.getElementById("retryButton");
 
   var statusMessage = document.getElementById("statusMessage");
@@ -21,25 +33,33 @@
   var resultsSection = document.getElementById("resultsSection");
   var chatTranscript = document.getElementById("chatTranscript");
 
-  var metadataSection = document.getElementById("metadataSection");
-  var resultsContainer = document.getElementById("resultsContainer");
-  var emptyState = document.getElementById("emptyState");
-
   var errorSection = document.getElementById("errorSection");
   var errorStatus = document.getElementById("errorStatus");
   var errorMessage = document.getElementById("errorMessage");
 
+  var suggestionButtons = document.querySelectorAll(".suggestion-btn");
+
   var isSubmitting = false;
   var lastRequestSnapshot = null;
   var pendingAssistantMessage = null;
-  var metadataVisible = false;
 
   form.addEventListener("submit", handleSubmit);
   retryButton.addEventListener("click", handleRetry);
   runAgainButton.addEventListener("click", handleRunAgain);
-  metaToggleButton.addEventListener("click", handleMetaToggle);
+  messageInput.addEventListener("input", handleComposerInput);
+  messageInput.addEventListener("keydown", handleComposerKeyDown);
+
+  suggestionButtons.forEach(function (button) {
+    button.addEventListener("click", function () {
+      var suggestion = button.getAttribute("data-suggestion") || "";
+      messageInput.value = suggestion;
+      autoResizeComposer();
+      messageInput.focus();
+    });
+  });
 
   setStatus("Ready.");
+  autoResizeComposer();
 
   function handleSubmit(event) {
     event.preventDefault();
@@ -57,19 +77,20 @@
     }
 
     var payload = buildPayload(validation.message, validation.userId);
+
     lastRequestSnapshot = {
       payload: payload,
       userMessage: validation.message
     };
 
-    showRunAgain();
     showConversation();
-    clearTechnicalDetails();
+    showRunAgain();
 
     appendUserMessage(validation.message);
     pendingAssistantMessage = appendAssistantPendingMessage();
 
     messageInput.value = "";
+    autoResizeComposer();
 
     executeRequest(lastRequestSnapshot);
   }
@@ -81,7 +102,6 @@
 
     hideError();
     showConversation();
-    clearTechnicalDetails();
 
     pendingAssistantMessage = appendAssistantPendingMessage();
     executeRequest(lastRequestSnapshot);
@@ -92,7 +112,6 @@
     clearFieldErrors();
     hideError();
     clearConversation();
-    clearTechnicalDetails();
     hideRunAgain();
 
     lastRequestSnapshot = null;
@@ -100,30 +119,27 @@
 
     setSubmitting(false);
     setStatus("Ready.");
+
+    autoResizeComposer();
     messageInput.focus();
   }
 
-  function handleMetaToggle() {
-    if (metaToggleButton.classList.contains("hidden")) {
-      return;
-    }
+  function handleComposerInput() {
+    autoResizeComposer();
+  }
 
-    metadataVisible = !metadataVisible;
-
-    if (metadataVisible) {
-      metadataSection.classList.remove("hidden");
-      metaToggleButton.textContent = "Hide technical details";
-      if ("open" in metadataSection) {
-        metadataSection.open = true;
+  function handleComposerKeyDown(event) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      if (!isSubmitting) {
+        form.requestSubmit();
       }
-      return;
     }
+  }
 
-    metadataSection.classList.add("hidden");
-    metaToggleButton.textContent = "Show technical details";
-    if ("open" in metadataSection) {
-      metadataSection.open = false;
-    }
+  function autoResizeComposer() {
+    messageInput.style.height = "auto";
+    messageInput.style.height = Math.min(messageInput.scrollHeight, 220) + "px";
   }
 
   function validateForm() {
@@ -262,9 +278,8 @@
   function renderSuccess(data, usedFallback) {
     hideError();
 
-    var extraction = extractAssistantPayload(data);
-    finalizeAssistantMessage(extraction.text, false);
-    renderTechnicalDetails(extraction.metadata);
+    var assistantText = extractAssistantText(data);
+    finalizeAssistantMessage(assistantText, false);
 
     setStatus(usedFallback ? "Completed (test webhook)." : "Completed.");
     scrollTranscriptToBottom();
@@ -277,61 +292,101 @@
     scrollTranscriptToBottom();
   }
 
-  function extractAssistantPayload(data) {
+  function extractAssistantText(data) {
     if (!data || typeof data !== "object" || Array.isArray(data)) {
+      return stringifyValue(data);
+    }
+
+    var preferredKeys = ["response", "answer", "message", "result", "text", "output"];
+    var keys = Object.keys(data);
+
+    var preferredValue = extractByPreferredKeys(data, preferredKeys);
+    if (preferredValue.found) {
+      return stringifyValue(preferredValue.value);
+    }
+
+    var stringValue = extractFirstStringValue(data, keys);
+    if (stringValue.found) {
+      return stringValue.value;
+    }
+
+    var cleaned = buildCleanObject(data, keys);
+    var cleanKeys = Object.keys(cleaned);
+
+    if (cleanKeys.length === 0) {
+      return "No response returned.";
+    }
+
+    if (cleanKeys.length === 1 && typeof cleaned[cleanKeys[0]] === "string") {
+      return String(cleaned[cleanKeys[0]]).trim() || "No response returned.";
+    }
+
+    return safeJsonStringify(cleaned);
+  }
+
+  function extractByPreferredKeys(data, preferredKeys) {
+    for (var i = 0; i < preferredKeys.length; i += 1) {
+      var key = preferredKeys[i];
+      if (!Object.prototype.hasOwnProperty.call(data, key)) {
+        continue;
+      }
+
+      var value = data[key];
+      if (!hasDisplayValue(value)) {
+        continue;
+      }
+
       return {
-        text: stringifyValue(data),
-        metadata: {}
+        found: true,
+        value: value
       };
     }
 
-    var keyOrder = ["response", "answer", "message", "result"];
-    var keys = Object.keys(data);
-    var primaryKey = "";
-    var primaryValue;
+    return {
+      found: false,
+      value: null
+    };
+  }
 
-    for (var i = 0; i < keyOrder.length; i += 1) {
-      var preferred = keyOrder[i];
-      if (Object.prototype.hasOwnProperty.call(data, preferred) && hasDisplayValue(data[preferred])) {
-        primaryKey = preferred;
-        primaryValue = data[preferred];
-        break;
+  function extractFirstStringValue(data, keys) {
+    for (var i = 0; i < keys.length; i += 1) {
+      var key = keys[i];
+      if (isControlKey(key)) {
+        continue;
       }
-    }
 
-    if (!primaryKey) {
-      for (var k = 0; k < keys.length; k += 1) {
-        var candidateKey = keys[k];
-        var candidateValue = data[candidateKey];
-        if (typeof candidateValue === "string" && candidateValue.trim()) {
-          primaryKey = candidateKey;
-          primaryValue = candidateValue;
-          break;
-        }
-      }
-    }
-
-    var text;
-    if (primaryKey) {
-      text = stringifyValue(primaryValue);
-    } else if (keys.length > 0) {
-      text = safeJsonStringify(data);
-    } else {
-      text = "No data returned.";
-    }
-
-    var metadata = {};
-    for (var m = 0; m < keys.length; m += 1) {
-      var key = keys[m];
-      if (key !== primaryKey) {
-        metadata[key] = data[key];
+      var value = data[key];
+      if (typeof value === "string" && value.trim()) {
+        return {
+          found: true,
+          value: value.trim()
+        };
       }
     }
 
     return {
-      text: text,
-      metadata: metadata
+      found: false,
+      value: ""
     };
+  }
+
+  function buildCleanObject(data, keys) {
+    var result = {};
+
+    for (var i = 0; i < keys.length; i += 1) {
+      var key = keys[i];
+      if (isControlKey(key)) {
+        continue;
+      }
+      result[key] = data[key];
+    }
+
+    return result;
+  }
+
+  function isControlKey(key) {
+    var normalized = String(key || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    return Object.prototype.hasOwnProperty.call(CONTROL_KEY_SET, normalized);
   }
 
   function hasDisplayValue(value) {
@@ -487,64 +542,6 @@
     return button;
   }
 
-  function renderTechnicalDetails(metadata) {
-    resultsContainer.innerHTML = "";
-
-    var keys = Object.keys(metadata || {});
-    if (keys.length === 0) {
-      metadataVisible = false;
-      metaToggleButton.classList.add("hidden");
-      metaToggleButton.textContent = "Show technical details";
-      metadataSection.classList.add("hidden");
-      emptyState.classList.add("hidden");
-      return;
-    }
-
-    metadataVisible = false;
-    metaToggleButton.classList.remove("hidden");
-    metaToggleButton.textContent = "Show technical details";
-    emptyState.classList.add("hidden");
-    metadataSection.classList.add("hidden");
-    if ("open" in metadataSection) {
-      metadataSection.open = false;
-    }
-
-    keys.forEach(function (key) {
-      var value = stringifyValue(metadata[key]);
-      var longValue = value.length > 120 || value.indexOf("\n") !== -1;
-
-      var card = document.createElement("article");
-      card.className = "meta-card";
-
-      var keyNode = document.createElement("p");
-      keyNode.className = "meta-key";
-      keyNode.textContent = key;
-
-      var valueNode = document.createElement("pre");
-      valueNode.className = longValue ? "meta-value long" : "meta-value";
-      valueNode.textContent = value;
-
-      var copyButton = createCopyButton(value);
-
-      card.appendChild(keyNode);
-      card.appendChild(valueNode);
-      card.appendChild(copyButton);
-      resultsContainer.appendChild(card);
-    });
-  }
-
-  function clearTechnicalDetails() {
-    resultsContainer.innerHTML = "";
-    emptyState.classList.add("hidden");
-    metadataVisible = false;
-    metaToggleButton.classList.add("hidden");
-    metaToggleButton.textContent = "Show technical details";
-    metadataSection.classList.add("hidden");
-    if ("open" in metadataSection) {
-      metadataSection.open = false;
-    }
-  }
-
   function renderError(error) {
     errorSection.classList.remove("hidden");
     errorStatus.textContent = error.status
@@ -613,7 +610,7 @@
       return "null";
     }
     if (value === undefined) {
-      return "undefined";
+      return "";
     }
     if (typeof value === "string") {
       return value;

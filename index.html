@@ -6,87 +6,67 @@
   <title>Database Analytics Chatbot</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main class="app-shell">
-    <header class="app-header">
-      <div class="brand">
-        <div class="brand-mark" aria-hidden="true">DB</div>
-        <div class="brand-copy">
-          <h1>Database Analytics Chatbot</h1>
-          <p>Ask analytics questions and get clear, structured answers from n8n.</p>
-        </div>
+  <main class="chat-app">
+    <header class="topbar">
+      <div class="app-title-wrap">
+        <span class="app-dot" aria-hidden="true"></span>
+        <h1>Database Analytics Chatbot</h1>
       </div>
-      <p id="statusMessage" class="status-chip" aria-live="polite">Ready.</p>
+      <button id="runAgainButton" class="ghost hidden" type="button">New chat</button>
     </header>
 
-    <section class="conversation-shell" aria-labelledby="conversationTitle">
-      <div class="conversation-top">
-        <h2 id="conversationTitle">Conversation</h2>
-        <div class="top-actions">
-          <button id="metaToggleButton" class="secondary hidden" type="button">Show technical details</button>
-          <button id="runAgainButton" class="secondary hidden" type="button">Run Again</button>
-        </div>
-      </div>
+    <section class="stage" aria-live="polite">
+      <p id="statusMessage" class="sr-only" aria-live="polite">Ready.</p>
 
-      <div id="welcomeState" class="welcome-state">
-        <p class="welcome-label">ANALYTICS ASSISTANT</p>
-        <h3>Start with a business question</h3>
-        <p>Try prompts like "How many suppliers were active last quarter?" or "Show category-wise monthly revenue for the last 6 months."</p>
-      </div>
+      <section id="welcomeState" class="welcome-state" aria-labelledby="welcomeTitle">
+        <p class="welcome-eyebrow">Analytics assistant</p>
+        <h2 id="welcomeTitle">How can I help with your data today?</h2>
+        <p>Ask metrics, trends, comparisons, and summaries. I will return clean, readable answers.</p>
+        <div class="suggestions">
+          <button class="suggestion-btn" type="button" data-suggestion="How many categories are there?">Count categories</button>
+          <button class="suggestion-btn" type="button" data-suggestion="Show top 10 products by total sales">Top products</button>
+          <button class="suggestion-btn" type="button" data-suggestion="Compare monthly revenue for the last 6 months">Revenue trend</button>
+        </div>
+      </section>
 
       <section id="resultsSection" class="transcript-shell hidden" aria-live="polite">
         <div id="chatTranscript" class="chat-transcript"></div>
       </section>
     </section>
 
-    <details id="metadataSection" class="metadata-shell hidden">
-      <summary>Technical details</summary>
-      <p id="emptyState" class="meta-empty hidden">No additional fields returned.</p>
-      <div id="resultsContainer" class="metadata-grid"></div>
-    </details>
-
-    <section id="errorSection" class="error-panel hidden" aria-labelledby="errorTitle" role="alert">
-      <h2 id="errorTitle">Request Failed</h2>
+    <section id="errorSection" class="error-panel hidden" role="alert" aria-labelledby="errorTitle">
+      <h2 id="errorTitle">Request failed</h2>
       <p id="errorStatus" class="error-status"></p>
       <p id="errorMessage" class="error-message"></p>
-      <button id="retryButton" class="secondary" type="button">Retry</button>
+      <button id="retryButton" class="ghost" type="button">Retry</button>
     </section>
 
     <section class="composer-shell" aria-labelledby="composerTitle">
-      <h2 id="composerTitle">Ask the assistant</h2>
+      <h2 id="composerTitle" class="sr-only">Chat composer</h2>
       <form id="chatForm" novalidate>
-        <div class="field">
-          <label for="message">Message</label>
-          <textarea
-            id="message"
-            name="message"
-            rows="5"
-            required
-            placeholder="Ask something like: How many suppliers were active last quarter?"
-          ></textarea>
-          <p id="messageError" class="field-error hidden" role="alert"></p>
-        </div>
+        <label class="sr-only" for="message">Message</label>
+        <textarea
+          id="message"
+          name="message"
+          rows="1"
+          required
+          placeholder="Ask anything about your database analytics..."
+        ></textarea>
 
-        <div class="field">
-          <label for="userId">User ID (optional)</label>
-          <input
-            id="userId"
-            name="userId"
-            type="text"
-            placeholder="e.g. ross"
-            autocomplete="off"
-          >
-        </div>
+        <input id="userId" name="userId" type="hidden" autocomplete="off">
 
-        <div class="composer-actions">
+        <div class="composer-bottom">
+          <p id="statusMessageInline" class="inline-status" aria-live="polite">Ready.</p>
           <button id="submitButton" type="submit">
             <span id="submitButtonText">Send</span>
           </button>
-          <p id="statusMessageInline" class="inline-status" aria-live="polite"></p>
         </div>
+
+        <p id="messageError" class="field-error hidden" role="alert"></p>
       </form>
     </section>
   </main>
